@@ -8,7 +8,7 @@ import (
 	"backend/routes"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors" 
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 )
@@ -24,9 +24,8 @@ func main() {
 		AppName: "Feature Management API v1.0",
 	})
 
-
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*", 
+		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
@@ -34,7 +33,11 @@ func main() {
 	app.Use(logger.New())
 
 	api := app.Group("/api/v1")
-	routes.SetupFeatureRoutes(api) 
+	routes.SetupFeatureRoutes(api)
+	routes.SetupMediaRoutes(api)
+	routes.SetupMediaDetailRoutes(api)
+	routes.SetupKycRoutes(api)
+	routes.SetupKycDetailRoutes(api)
 
 	port := os.Getenv("PORT")
 	if port == "" {
