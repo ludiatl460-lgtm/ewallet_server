@@ -8,7 +8,7 @@ import (
 	"backend/routes"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/cors" 
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 )
@@ -32,10 +32,18 @@ func main() {
 	}))
 
 	app.Use(logger.New())
-
 	api := app.Group("/api/v1")
+	
 	routes.SetupFeatureRoutes(api) 
-
+	routes.SetupCampaignRoutes(api)
+	routes.SetupProvinceRoutes(api)
+	routes.SetupDistrictRoutes(api)
+    routes.SetupUserRoutes(api)
+	routes.SetupDeviceRoutes(api)
+	routes.SetupUserDeviceRoutes(api)
+	routes.SetupDeviceLogRoutes(api)
+	routes.SetupCardRoutes(api)
+	routes.SetupLoginlogRoutes(api)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"

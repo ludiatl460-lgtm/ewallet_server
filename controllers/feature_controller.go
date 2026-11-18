@@ -2,10 +2,8 @@ package controllers
 
 import (
 	"strconv"
-
 	"backend/models"
 	"backend/services"
-
 	"github.com/gofiber/fiber/v2"
 )
 
