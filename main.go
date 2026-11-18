@@ -34,7 +34,9 @@ func main() {
 	app.Use(logger.New())
 
 	api := app.Group("/api/v1")
-	routes.SetupFeatureRoutes(api) 
+	routes.SetupFeatureRoutes(api)
+	routes.SetupDisputeRoutes(api)
+	routes.SetupPrincipleImageRoutes(api)
 
 	port := os.Getenv("PORT")
 	if port == "" {
