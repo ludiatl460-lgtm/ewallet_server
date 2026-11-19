@@ -1,3 +1,4 @@
+// models\feature_model.go
 package models
 
 type Feature struct {

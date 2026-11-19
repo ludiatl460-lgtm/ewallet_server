@@ -1,3 +1,4 @@
+// config\database.go
 package config
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
+
 var DB *sqlx.DB
 
 func ConnectDB() {
