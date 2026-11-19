@@ -24,26 +24,28 @@ func main() {
 		AppName: "Feature Management API v1.0",
 	})
 
-
 	app.Use(cors.New(cors.Config{
-		AllowOrigins: "*", 
+		AllowOrigins: "*",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization",
 		AllowMethods: "GET, POST, PUT, DELETE, OPTIONS",
 	}))
 
 	app.Use(logger.New())
 	api := app.Group("/api/v1")
-	
-	routes.SetupFeatureRoutes(api) 
+
+	routes.SetupFeatureRoutes(api)
 	routes.SetupCampaignRoutes(api)
 	routes.SetupProvinceRoutes(api)
 	routes.SetupDistrictRoutes(api)
-    routes.SetupUserRoutes(api)
+	routes.SetupUserRoutes(api)
 	routes.SetupDeviceRoutes(api)
 	routes.SetupUserDeviceRoutes(api)
 	routes.SetupDeviceLogRoutes(api)
 	routes.SetupCardRoutes(api)
 	routes.SetupLoginlogRoutes(api)
+	routes.SetupRuleRoutes(api)
+	routes.SetupLimitRoutes(api)
+	routes.SetupAccountRoutes(api)
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "3000"

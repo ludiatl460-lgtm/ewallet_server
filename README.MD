@@ -152,3 +152,263 @@ CREATE INDEX idx_login_log_user_id ON login_log(user_id);
 CREATE INDEX idx_login_log_login_at ON login_log(login_at);
 
 
+<!-- CREATE TABLE limits -->
+CREATE TABLE limits (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    min_amount FLOAT NOT NULL,
+    max_amount FLOAT NOT NULL,
+    fee_amount FLOAT DEFAULT 0
+);
+
+-- ເພີ່ມ Foreign Key ໃຫ້ຕາຕະລາງ limits
+ALTER TABLE limits
+ADD CONSTRAINT fk_limit_account 
+    FOREIGN KEY (account_id) 
+    REFERENCES account(id) 
+    ON DELETE CASCADE;
+
+
+<!-- CREATE TABLE rule -->
+    CREATE TABLE rule (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL,
+    amount FLOAT,
+    unit VARCHAR(20) CHECK (unit IN ('day', 'transaction', 'month'))
+);
+
+-- ເພີ່ມ Foreign Key ໃຫ້ຕາຕະລາງ rule
+ALTER TABLE rule
+ADD CONSTRAINT fk_rule_account 
+    FOREIGN KEY (account_id) 
+    REFERENCES account(id) 
+    ON DELETE CASCADE;
+
+
+
+
+
+
+<!-- ACCOUNT SCRIPTS -->
+<!-- CREATE TABLE IF NOT EXISTS account -->
+CREATE TABLE IF NOT EXISTS account (
+    id                BIGSERIAL PRIMARY KEY,
+    user_id           BIGINT NOT NULL,                   
+    account_number    VARCHAR(15) NOT NULL UNIQUE,         
+    account_type      VARCHAR(30) NOT NULL,               
+    status            account_status_enum NOT NULL DEFAULT 'active',    
+    opened_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
+    closed_at         TIMESTAMPTZ,                       
+    balance           NUMERIC(15,2) NOT NULL DEFAULT 0.00, 
+    available_balance NUMERIC(15,2) NOT NULL DEFAULT 0.00, 
+    hold_amount       NUMERIC(15,2) NOT NULL DEFAULT 0.00, 
+    currency          VARCHAR(3) NOT NULL DEFAULT 'LAK',
+
+    CONSTRAINT chk_account_balance CHECK (balance >= 0),
+    CONSTRAINT chk_account_available CHECK (available_balance >= 0),
+    CONSTRAINT chk_account_hold CHECK (hold_amount >= 0),
+    CONSTRAINT chk_available_calc CHECK (available_balance <= balance)
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_user_id ON account(user_id);
+CREATE INDEX IF NOT EXISTS idx_account_status ON account(status);
+
+
+<!-- ALTER TABLE account -->
+
+ALTER TABLE account
+ADD CONSTRAINT fk_account_user
+FOREIGN KEY (user_id)
+REFERENCES users(id)
+ON UPDATE CASCADE
+ON DELETE RESTRICT;
+
+
+
+
+
+
+<!-- account -->
+package models
+
+import (
+	"time"
+)
+
+type Account struct {
+	ID               int64        `db:"id" json:"id"`
+	UserID           int64        `db:"user_id" json:"user_id"`
+	AccountNumber    string       `db:"account_number" json:"account_number"`
+	AccountType      string       `db:"account_type" json:"account_type"`
+	Status           string       `db:"status" json:"status"`
+	OpenedAt         time.Time    `db:"opened_at" json:"opened_at"`
+	ClosedAt         time.Time `db:"closed_at" json:"closed_at"`
+	Balance          float64      `db:"balance" json:"balance"`
+	AvailableBalance float64      `db:"available_balance" json:"available_balance"`
+	HoldAmount       float64      `db:"hold_amount" json:"hold_amount"`
+	Currency         string       `db:"currency" json:"currency"`
+}
+
+
+
+
+
+
+package services
+
+import (
+	"backend/config"
+	"backend/models"
+)
+
+func GetAllAccounts() (list []models.Account, err error) {
+	err = config.DB.Select(&list, `SELECT * FROM account ORDER BY id`)
+	return list, err
+}
+
+func GetAccountByID(id int64) (*models.Account, error) {
+	var a models.Account
+	err := config.DB.Get(&a, `SELECT * FROM account WHERE id = $1`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+func CreateAccount(a *models.Account) (*models.Account, error) {
+	query := `INSERT INTO account (user_id, account_number, account_type, status, closed_at,balance, available_balance, hold_amount, currency
+	          )
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)RETURNING *`
+	var created models.Account
+	err := config.DB.Get(&created,query,a.UserID,a.AccountNumber,a.AccountType,a.Status,a.ClosedAt,a.Balance,a.AvailableBalance,a.HoldAmount,a.Currency,
+	)
+	return &created, err
+}
+
+func UpdateAccount(id int64, a *models.Account) (*models.Account, error) {
+	query := `UPDATE account SET user_id=$1, account_number=$2, account_type=$3, status=$4, closed_at=$5,balance=$6, available_balance=$7, hold_amount=$8, currency=$9 WHERE id=$10 RETURNING *`
+	var updated models.Account
+	err := config.DB.Get(&updated,query,a.UserID,a.AccountNumber,a.AccountType,a.Status,a.ClosedAt,a.Balance,a.AvailableBalance,a.HoldAmount,a.Currency,id,
+	)
+	return &updated, err
+}
+
+func DeleteAccount(id int64) (*models.Account, error) {
+	query := `DELETE FROM account WHERE id = $1 RETURNING *`
+	var deleted models.Account
+	err := config.DB.Get(&deleted, query, id)
+	if err != nil {
+		return nil, err
+	}
+	return &deleted, nil
+}
+
+
+
+
+
+package controllers
+
+import (
+	"backend/models"
+	"backend/services"
+	"database/sql"
+	"errors"
+	"strconv"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+func GetAllAccounts(c *fiber.Ctx) error {
+	list, err := services.GetAllAccounts()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(list)
+}
+
+func GetAccountByID(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+
+	res, err := services.GetAccountByID(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Account not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(res)
+}
+
+func CreateAccount(c *fiber.Ctx) error {
+	var a models.Account
+	if err := c.BodyParser(&a); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	res, err := services.CreateAccount(&a)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.Status(fiber.StatusCreated).JSON(res)
+}
+
+func UpdateAccount(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+
+	var a models.Account
+	if err := c.BodyParser(&a); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	res, err := services.UpdateAccount(id, &a)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Account not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(res)
+}
+
+func DeleteAccount(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+
+	res, err := services.DeleteAccount(id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"message": "Account not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+	}
+	return c.JSON(res)
+}
+
+
+
+
+
+package routes
+import(
+	"backend/controllers"
+	"github.com/gofiber/fiber/v2"
+)
+
+func SetupAccountRoutes(route fiber.Router){
+	accounts := route.Group("/accounts")
+
+	accounts.Get("/", controllers.GetAllAccounts)
+	accounts.Get("/:id", controllers.GetAccountByID)
+	accounts.Post("/", controllers.CreateAccount)
+	accounts.Put("/:id", controllers.UpdateAccount)
+	accounts.Delete("/:id", controllers.DeleteAccount)
+}
