@@ -38,6 +38,7 @@ func main() {
 	routes.SetupMediaDetailRoutes(api)
 	routes.SetupKycRoutes(api)
 	routes.SetupKycDetailRoutes(api)
+	routes.SetupTransactionRoutes(api)
 
 	port := os.Getenv("PORT")
 	if port == "" {
