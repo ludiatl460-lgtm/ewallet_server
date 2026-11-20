@@ -88,3 +88,48 @@ func UpdateAccountStatus(id int64, newStatus string) (*models.Account, error) {
 func PrintAccountDetails(acc *models.Account) string {
 	return fmt.Sprintf("Account: %s | Balance: %.2f %s", acc.AccountNumber, acc.Balance, acc.Currency)
 }
+
+// UpdateAccount ອັບເດດຂໍ້ມູນ Account (Type ແລະ Status)
+func UpdateAccount(id int64, accountType *string, status *string) (*models.Account, error) {
+	// ໃຊ້ COALESCE ເພື່ອຖ້າຄ່າໃດເປັນ nil ໃຫ້ໃຊ້ຄ່າເກົ່າໃນ Database
+	query := `
+		UPDATE account 
+		SET account_type = COALESCE($1, account_type), 
+		    status = COALESCE($2, status),
+		    closed_at = CASE WHEN $2 = 'closed' THEN NOW() ELSE closed_at END
+		WHERE id = $3
+		RETURNING ` + accountColumns
+
+	var acc models.Account
+	err := config.DB.Get(&acc, query, accountType, status, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrAccountNotFound
+		}
+		return nil, err
+	}
+	return &acc, nil
+}
+
+// CloseAccount ສຳລັບປິດ Account (Soft Delete)
+func CloseAccount(id int64) error {
+	query := `UPDATE account SET status = 'closed', closed_at = NOW() WHERE id = $1`
+	res, err := config.DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return ErrAccountNotFound
+	}
+	return nil
+}
+
+// GetAllAccounts ດຶງ Account ທັງໝົດໃນລະບົບ (ສຳລັບ Admin ເບິ່ງພາບລວມ)
+func GetAllAccounts() ([]models.Account, error) {
+	list := []models.Account{}
+	query := `SELECT ` + accountColumns + ` FROM account ORDER BY id DESC`
+	
+	err := config.DB.Select(&list, query)
+	return list, err
+}

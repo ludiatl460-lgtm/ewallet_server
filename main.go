@@ -40,6 +40,7 @@ func main() {
 	routes.SetupQRCodeRoutes(api) 
 	routes.SetupNotificationRoutes(api) 
 	routes.SetupAccountRoutes(api) 
+	routes.SetupUserRoutes(api)
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -73,3 +73,68 @@ func GetAccountsByUserID(c *fiber.Ctx) error {
 		"data": list,
 	})
 }
+
+// GetAllAccounts ດຶງ Account ທັງໝົດໃນລະບົບ
+// GET /api/v1/accounts
+func GetAllAccounts(c *fiber.Ctx) error {
+	// ✅ ບໍ່ຕ້ອງອ່ານ user_id ຈາກ Query ແລ້ວ
+	list, err := services.GetAllAccounts()
+	if err != nil {
+		log.Printf("GetAllAccounts error: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to fetch accounts"})
+	}
+
+	c.Set("Cache-Control", "no-store")
+	return c.JSON(fiber.Map{"data": list})
+}
+
+// UpdateAccount ແກ້ໄຂຂໍ້ມູນ Account
+// PUT /api/v1/accounts/:id
+func UpdateAccount(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid account id"})
+	}
+
+	// ຮັບສະເພາະ Field ທີ່ອະນຸຍາດໃຫ້ແກ້ໄຂ
+	type updateReq struct {
+		AccountType *string `json:"account_type"`
+		Status      *string `json:"status"`
+	}
+	var req updateReq
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	acc, err := services.UpdateAccount(id, req.AccountType, req.Status)
+	if err != nil {
+		if errors.Is(err, services.ErrAccountNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "account not found"})
+		}
+		log.Printf("UpdateAccount error: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to update account"})
+	}
+
+	c.Set("Cache-Control", "no-store")
+	return c.JSON(acc)
+}
+
+// DeleteAccount ປິດ ຫຼື ລຶບ Account (Soft Delete)
+// DELETE /api/v1/accounts/:id
+func DeleteAccount(c *fiber.Ctx) error {
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil || id <= 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid account id"})
+	}
+
+	// ພວກເຮົາຈະບໍ່ລຶບຖິ້ມແທ້ ແຕ່ປ່ຽນ status ເປັນ closed
+	err = services.CloseAccount(id)
+	if err != nil {
+		if errors.Is(err, services.ErrAccountNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "account not found"})
+		}
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to delete account"})
+	}
+
+	return c.JSON(fiber.Map{"message": "account closed successfully"})
+}
